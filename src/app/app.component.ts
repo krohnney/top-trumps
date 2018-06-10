@@ -1,31 +1,84 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { GameService, PLAYER_ONE, PLAYER_TWO } from "./game/game.service";
+import { Observable } from "rxjs/internal/Observable";
+import { filter, map } from "rxjs/operators";
+import { CardsService } from "./cards/cards.service";
 
 @Component({
     selector: 'app-root',
     template: `
-    <!--The content below is only a placeholder and can be replaced.-->
-    <div style="text-align:center">
-      <h1>
-        Welcome to {{title}}!
-      </h1>
-      <img width="300" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgMjUwIj4KICAgIDxwYXRoIGZpbGw9IiNERDAwMzEiIGQ9Ik0xMjUgMzBMMzEuOSA2My4ybDE0LjIgMTIzLjFMMTI1IDIzMGw3OC45LTQzLjcgMTQuMi0xMjMuMXoiIC8+CiAgICA8cGF0aCBmaWxsPSIjQzMwMDJGIiBkPSJNMTI1IDMwdjIyLjItLjFWMjMwbDc4LjktNDMuNyAxNC4yLTEyMy4xTDEyNSAzMHoiIC8+CiAgICA8cGF0aCAgZmlsbD0iI0ZGRkZGRiIgZD0iTTEyNSA1Mi4xTDY2LjggMTgyLjZoMjEuN2wxMS43LTI5LjJoNDkuNGwxMS43IDI5LjJIMTgzTDEyNSA1Mi4xem0xNyA4My4zaC0zNGwxNy00MC45IDE3IDQwLjl6IiAvPgogIDwvc3ZnPg==">
-    </div>
-    <h2>Here are some links to help you start: </h2>
-    <ul>
-      <li>
-        <h2><a target="_blank" rel="noopener" href="https://angular.io/tutorial">Tour of Heroes</a></h2>
-      </li>
-      <li>
-        <h2><a target="_blank" rel="noopener" href="https://github.com/angular/angular-cli/wiki">CLI Documentation</a></h2>
-      </li>
-      <li>
-        <h2><a target="_blank" rel="noopener" href="https://blog.angular.io/">Angular blog</a></h2>
-      </li>
-    </ul>
-    
+        <H1>Stars Wars Top Trumps</H1>
+        
+        <button (click)="newGame()">New Game</button>
+        
+        <div *ngIf="game$ | async as game">
+            <p *ngIf="game.winner; else draw">The winner is: {{ getWinnerName(game.winner) }}</p>
+            <ng-template #draw>Its a Draw!</ng-template>
+            <div *ngIf="game.type === 'people'">
+                <app-people-card [card]="game.player1Card"
+                                 [attribute]="game.attribute"></app-people-card>
+                <app-people-card [card]="game.player2Card"
+                                 [attribute]="game.attribute"></app-people-card>
+            </div>
+            <div *ngIf="game.type === 'starships'">
+                <app-starship-card [card]="game.player1Card"
+                                   [attribute]="game.attribute"></app-starship-card>
+                <app-starship-card [card]="game.player2Card"
+                                   [attribute]="game.attribute"></app-starship-card>
+            </div>
+        </div>
   `,
     styleUrls: ['./app.component.scss']
 })
-export class AppComponent {
-    title = 'app';
+export class AppComponent implements OnInit {
+    game$: Observable<any>;
+
+    constructor(private gameService: GameService,
+                private cardService: CardsService) {
+    }
+
+    ngOnInit() {
+        this.newGame();
+        this.game$ = this.gameService.game$.pipe(
+            filter((game) => game[PLAYER_ONE].card && game[PLAYER_TWO].card),
+            map(this.selectWinner()),
+            map((game) => {
+                return {
+                    attribute: game.attribute,
+                    winner: game.winner,
+                    type: game.type,
+                    player1Card: game[PLAYER_ONE].card,
+                    player2Card: game[PLAYER_TWO].card,
+                }
+            }),
+        );
+    }
+
+    newGame() {
+        this.gameService.start();
+    }
+
+    selectWinner() {
+        return (game) => {
+            game.attribute = this.cardService.getRandomAttribute(game.type);
+            const p1Attribute = game[PLAYER_ONE].card.attributes[game.attribute];
+            const p2Attribute = game[PLAYER_TWO].card.attributes[game.attribute];
+            const winner = this.cardService.selectWinningCard(p1Attribute, p2Attribute);
+
+            switch(winner) {
+                case p1Attribute:
+                    game.winner = PLAYER_ONE;
+                    break;
+                case p2Attribute:
+                    game.winner = PLAYER_TWO;
+                    break;
+            }
+
+            return game;
+        }
+    }
+
+    getWinnerName(winner) {
+        return winner === PLAYER_ONE ? 'Player One' : 'Player Two';
+    }
 }
